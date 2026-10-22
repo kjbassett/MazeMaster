@@ -47,17 +47,33 @@ def find_available_coords(adjacencies: np.ndarray, maze: np.ndarray, ep: np.ndar
 
     return available_coords
 
-def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1):
+def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc: int = 0, pc: int = 1):
+    corners = [(0, 0), (0, w-1), (h-1, 0), (h-1, h-1)]
+    if start in corners:
+        raise ValueError("start cannot be in a corner")
+    if finish in corners:
+        raise ValueError("finish cannot be in a corner")
+    if not any([start[0] == 0, start[0] == h-1, start[1] == 0, start[1] == w-1]):
+        raise ValueError("start must lie on the perimeter of the maze")
+    if not any([finish[0] == 0, finish[0] == h-1, finish[1] == 0, finish[1] == w-1]):
+        raise ValueError('finish must lie on the perimeter of the maze')
+    if abs(finish[0] - start[0]) + abs(finish[0] - start[0]) <= 1:
+        raise ValueError('start and finish must be at least 2 units away from each other')
+    
     # create window
     cv2.namedWindow('Maze Generator', cv2.WINDOW_NORMAL)
     # scale up 4 ez viewing
-    cv2.resizeWindow('Maze Generator', 900, 900) 
+    window_w = w
+    window_h = h
+    while window_w < 500 and window_h < 500:
+        window_w, window_h = window_w * 2, window_h * 2
+    cv2.resizeWindow('Maze Generator', window_w, window_h) 
 
     maze = generate_box(w, h, wc, wc)
     # adjacencies holds all adjacent coordinate for each coordinate
     adjacencies = np.array([[get_adjacent_coords([y, x]) for x in range(w)] for y in range(h)])
-    maze[1, 0], maze[h-2, w-1] = pc, pc # start and end
-    finish = np.array([h-2, w-1])
+    maze[*start], maze[*finish] = pc, pc # start and end
+    finish = np.array(finish)
 
     path_endpoints = [np.array([1, 0])]
     connected = False
@@ -105,4 +121,4 @@ def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1):
     maze = (maze * 255).astype(np.uint8) 
     return maze
 
-cv2.imwrite('output.png', gen_maze(300, 300))
+cv2.imwrite('output.png', gen_maze(480, 480, (0, 1), (478, 479)))
