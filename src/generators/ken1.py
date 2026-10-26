@@ -31,11 +31,11 @@ def find_available_coords(adjacencies: np.ndarray, maze: np.ndarray, ep: np.ndar
             continue
         # or if any of adj's adjacent coords are already a path
         # (don't join 2 paths)
-        for adj_adj in adjacencies[adj[0], adj[1]]:
+        for adj_adj in adjacencies[*adj]:
             # ignore current path endpoint and finish
             if (adj_adj == ep).all():
                 continue
-            elif maze[adj_adj[0], adj_adj[1]] == pc:
+            elif maze[*adj_adj] == pc:
                 if (adj_adj == finish).all():
                     if connected:
                         continue
@@ -73,7 +73,7 @@ def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc
     # adjacencies holds all adjacent coordinate for each coordinate
     adjacencies = np.array([[get_adjacent_coords([y, x]) for x in range(w)] for y in range(h)])
     maze[*start], maze[*finish] = pc, pc # start and end
-    finish = np.array(finish)
+    fin = np.array(finish)
 
     path_endpoints = [np.array([1, 0])]
     connected = False
@@ -96,7 +96,7 @@ def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc
             # get the first endpoint and remove from list
             ep = path_endpoints.pop(0)
             # get adjacent, available coords to extend path
-            available_coords = find_available_coords(adjacencies, maze, ep, finish, pc, connected)
+            available_coords = find_available_coords(adjacencies, maze, ep, fin, pc, connected)
             if not available_coords:
                 continue
             # it must go to at least 1 available coord
@@ -108,7 +108,7 @@ def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc
             next_coords = random.sample(available_coords, n_branches)
 
             for coord in next_coords:
-                if (coord == finish).all():
+                if (coord == fin).all():
                     connected = True
                 # add the new coord back to the list of endpoints
                 path_endpoints.append(coord)
@@ -121,4 +121,4 @@ def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc
     maze = (maze * 255).astype(np.uint8) 
     return maze
 
-cv2.imwrite('output.png', gen_maze(480, 480, (0, 1), (478, 479)))
+cv2.imwrite('output.png', gen_maze(100, 100, (0, 1), (98, 99)))
