@@ -66,7 +66,7 @@ def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc
     maze[*start], maze[*finish] = pc, pc # start and end
     fin = np.array(finish)
 
-    path_endpoints = [np.array([1, 0])]
+    path_endpoints = [start]
     connected = False
     times = [] # holds time taken to execute each iteration
     while not connected:
