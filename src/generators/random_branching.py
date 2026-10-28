@@ -3,7 +3,8 @@ import numpy as np
 import random
 import time
 
-from utils import generate_box, show_array
+from utils import check_start_finish
+from utils import generate_box
 
 
 def get_adjacent_coords(coord):
@@ -48,17 +49,7 @@ def find_available_coords(adjacencies: np.ndarray, maze: np.ndarray, ep: np.ndar
     return available_coords
 
 def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc: int = 0, pc: int = 1):
-    corners = [(0, 0), (0, w-1), (h-1, 0), (h-1, h-1)]
-    if start in corners:
-        raise ValueError("start cannot be in a corner")
-    if finish in corners:
-        raise ValueError("finish cannot be in a corner")
-    if not any([start[0] == 0, start[0] == h-1, start[1] == 0, start[1] == w-1]):
-        raise ValueError("start must lie on the perimeter of the maze")
-    if not any([finish[0] == 0, finish[0] == h-1, finish[1] == 0, finish[1] == w-1]):
-        raise ValueError('finish must lie on the perimeter of the maze')
-    if abs(finish[0] - start[0]) + abs(finish[0] - start[0]) <= 1:
-        raise ValueError('start and finish must be at least 2 units away from each other')
+    check_start_finish(w, h, start, finish)
     
     # create window
     cv2.namedWindow('Maze Generator', cv2.WINDOW_NORMAL)
@@ -81,41 +72,40 @@ def gen_maze(w: int, h: int, start: tuple[int, int], finish: tuple[int, int], wc
     while not connected:
         # If no end points remain, choose a random path point
         if not path_endpoints:
-            path_coords = np.argwhere(maze[:h-1, :w-1] == 1)
+            path_coords = np.argwhere(maze[1:h-1, 1:w-1] == 1)
             coord_idx = np.random.randint(len(path_coords))
             coord = path_coords[coord_idx]
             path_endpoints.append(coord)
 
-        # while there are paths that haven't terminated
-        while path_endpoints:
-            t = time.time()
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'): # press q on the window to stop
-                connected = True # just to make the program stop
-                break
-            # get the first endpoint and remove from list
-            ep = path_endpoints.pop(0)
-            # get adjacent, available coords to extend path
-            available_coords = find_available_coords(adjacencies, maze, ep, fin, pc, connected)
-            if not available_coords:
-                continue
-            # it must go to at least 1 available coord
-            n_branches = 1
-            # 5% chance for each additional branch
-            while n_branches < len(available_coords) and random.random() < 0.05:
-                n_branches += 1
-            # randomly select n_branches of the total available coords
-            next_coords = random.sample(available_coords, n_branches)
 
-            for coord in next_coords:
-                if (coord == fin).all():
-                    connected = True
-                # add the new coord back to the list of endpoints
-                path_endpoints.append(coord)
-                # color the coord to be a path
-                maze[coord[0], coord[1]] = pc
-            cv2.imshow('Maze Generator', maze)
-            times.append(time.time() - t)
+        t = time.time()
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'): # press q on the window to stop
+            connected = True # just to make the program stop
+            break
+        # get the first endpoint and remove from list
+        ep = path_endpoints.pop(0)
+        # get adjacent, available coords to extend path
+        available_coords = find_available_coords(adjacencies, maze, ep, fin, pc, connected)
+        if not available_coords:
+            continue
+        # it must go to at least 1 available coord
+        n_branches = 1
+        # 5% chance for each additional branch
+        while n_branches < len(available_coords) and random.random() < 0.05:
+            n_branches += 1
+        # randomly select n_branches of the total available coords
+        next_coords = random.sample(available_coords, n_branches)
+
+        for coord in next_coords:
+            if (coord == fin).all():
+                connected = True
+            # add the new coord back to the list of endpoints
+            path_endpoints.append(coord)
+            # color the coord to be a path
+            maze[coord[0], coord[1]] = pc
+        cv2.imshow('Maze Generator', maze)
+        times.append(time.time() - t)
 
     print(sum(times) / len(times))
     maze = (maze * 255).astype(np.uint8) 

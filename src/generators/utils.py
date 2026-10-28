@@ -32,3 +32,17 @@ def show_array(array: np.ndarray):
         if key == ord('q'):
             break
         cv2.imshow('Maze Generator', array)
+
+
+def check_start_finish(w, h, start, finish):
+    corners = [(0, 0), (0, w-1), (h-1, 0), (h-1, h-1)]
+    if start in corners:
+        raise ValueError("start cannot be in a corner")
+    if finish in corners:
+        raise ValueError("finish cannot be in a corner")
+    if not any([start[0] == 0, start[0] == h-1, start[1] == 0, start[1] == w-1]):
+        raise ValueError("start must lie on the perimeter of the maze")
+    if not any([finish[0] == 0, finish[0] == h-1, finish[1] == 0, finish[1] == w-1]):
+        raise ValueError('finish must lie on the perimeter of the maze')
+    if abs(finish[0] - start[0]) + abs(finish[0] - start[0]) <= 1:
+        raise ValueError('start and finish must be at least 2 units away from each other')
