@@ -1,13 +1,22 @@
 import argparse
 import random
+from typing import Callable
 
+import cv2
 import numpy as np
 from PIL import Image
 
 from utils import generate_box, show_array
 
 
-def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1, seed: int | None = None) -> np.ndarray:
+def gen_maze(
+    w: int,
+    h: int,
+    wc: int = 0,
+    pc: int = 1,
+    seed: int | None = None,
+    on_step: Callable[[np.ndarray, tuple[int, int]], None] | None = None,
+) -> np.ndarray:
     """Generates a maze where every path runs straight and turns at right angles
 
     Paths sit on odd rows/columns and walls on even ones, so every corridor is
@@ -21,6 +30,9 @@ def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1, seed: int | None = None) 
         wc (int, optional): wall value. Defaults to 0.
         pc (int, optional): path value. Defaults to 1.
         seed (int, optional): random seed, for repeatable mazes. Defaults to None.
+        on_step (callable, optional): called as on_step(maze, (y, x)) after every
+            carve and backtrack, with the pixel the search is currently on.
+            Used to animate generation. Defaults to None.
 
     Returns:
         np.ndarray: 2d array of wc and pc values
@@ -50,6 +62,8 @@ def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1, seed: int | None = None) 
         ]
         if not neighbors:
             stack.pop()
+            if on_step and stack:
+                on_step(maze, (2 * stack[-1][0] + 1, 2 * stack[-1][1] + 1))
             continue
         nr, nc = rng.choice(neighbors)
         visited[nr, nc] = True
@@ -57,6 +71,8 @@ def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1, seed: int | None = None) 
         maze[2 * nr + 1, 2 * nc + 1] = pc
         maze[r + nr + 1, c + nc + 1] = pc
         stack.append((nr, nc))
+        if on_step:
+            on_step(maze, (2 * nr + 1, 2 * nc + 1))
 
     # openings: top edge above the first cell, bottom edge below the last cell
     maze[0, 1] = pc
@@ -65,6 +81,48 @@ def gen_maze(w: int, h: int, wc: int = 0, pc: int = 1, seed: int | None = None) 
         # even height: extend through the spare wall line to the perimeter
         maze[h - 1, 2 * cols - 1] = pc
     return maze
+
+
+class Animator:
+    """Draws the maze in a window as gen_maze carves it; pass as on_step
+
+    Press q in the window to skip to the finished maze.
+    """
+
+    def __init__(
+        self,
+        w: int,
+        h: int,
+        wall_rgb: tuple[int, int, int],
+        path_rgb: tuple[int, int, int],
+        head_rgb: tuple[int, int, int] = (255, 0, 0),
+        steps_per_frame: int = 1,
+        delay_ms: int = 1,
+    ):
+        # opencv wants bgr
+        self.palette = np.array([wall_rgb[::-1], path_rgb[::-1]], dtype=np.uint8)
+        self.head_bgr = head_rgb[::-1]
+        self.steps_per_frame = max(1, steps_per_frame)
+        self.delay_ms = max(1, delay_ms)
+        self.step = 0
+        self.skip = False
+
+        cv2.namedWindow('Maze Generator', cv2.WINDOW_NORMAL)
+        # scale up 4 ez viewing
+        window_w, window_h = w, h
+        while window_w < 500 and window_h < 500:
+            window_w, window_h = window_w * 2, window_h * 2
+        cv2.resizeWindow('Maze Generator', window_w, window_h)
+
+    def __call__(self, maze: np.ndarray, head: tuple[int, int]):
+        self.step += 1
+        if self.skip or self.step % self.steps_per_frame:
+            return
+        frame = self.palette[maze]
+        frame[head] = self.head_bgr
+        cv2.imshow('Maze Generator', frame)
+        if cv2.waitKey(self.delay_ms) & 0xFF == ord('q'):
+            self.skip = True
 
 
 def save_indexed_png(maze: np.ndarray, path: str, wall_rgb: tuple[int, int, int], path_rgb: tuple[int, int, int]):
@@ -98,9 +156,18 @@ if __name__ == '__main__':
     parser.add_argument('--path-color', type=parse_rgb, default=(255, 255, 255), help='r,g,b')
     parser.add_argument('--seed', type=int, help='random seed for a repeatable maze')
     parser.add_argument('--show', action='store_true', help='show the maze in a window (press q to close)')
+    parser.add_argument('--animate', action='store_true', help='watch the maze being built (press q to skip ahead)')
+    parser.add_argument('--steps-per-frame', type=int, default=1, help='carving steps drawn per frame when animating')
+    parser.add_argument('--delay', type=int, default=1, help='milliseconds to wait between frames when animating')
     args = parser.parse_args()
 
-    maze = gen_maze(args.width, args.height, seed=args.seed)
+    animator = None
+    if args.animate:
+        animator = Animator(
+            args.width, args.height, args.wall_color, args.path_color,
+            steps_per_frame=args.steps_per_frame, delay_ms=args.delay,
+        )
+    maze = gen_maze(args.width, args.height, seed=args.seed, on_step=animator)
     save_indexed_png(maze, args.output, args.wall_color, args.path_color)
     print(f'saved {args.width}x{args.height} maze to {args.output}')
     if args.show:
